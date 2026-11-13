@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: evacuation-support-system
+  flyway:
+    enabled: false
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/evacuation_support_system_database
+    username:
+    password:
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+    database: postgresql
+
+evacuation:
+  building-id: "0001"
+  rooms-file: "classpath:maps/0001_rooms.csv"
+  solver:
+    max-horizon: 500
+    maps-location: "classpath:maps/"
+
+myapp:
+  jwt-secret:

@@ -1,0 +1,9 @@
+package com.urbaniak.evacuation_support_system.models.user;
+
+public enum EvacuationStatus {
+
+     IDLE, /** nie uwzględniony w przypadku ewakuacji */
+     ACTIVE, /** w budynku, aktywny użytkownik, uwzględniany w ewakuacji */
+     ARRIVED /** dotarł do punktu ewakuacji, nie uwzględniony w ewakuacji */
+
+}
