@@ -1,6 +1,5 @@
 package com.urbaniak.evacuation_support_system.controllers;
 
-import com.urbaniak.evacuation_support_system.components.evacuationsolver.output.dto.MobileRoute;
 import com.urbaniak.evacuation_support_system.dto.Request.LogoutRequest;
 import com.urbaniak.evacuation_support_system.dto.Request.UpdateFcmTokenRequest;
 import com.urbaniak.evacuation_support_system.dto.Request.UpdateLocalizationRequest;
@@ -47,15 +46,12 @@ public class UserController {
 
     @PostMapping("/me/update-fcm-token")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<SimpleResponse> updateFcmToken(@Valid @RequestBody UpdateFcmTokenRequest request, @AuthenticationPrincipal UserPrincipal user){
+    public ResponseEntity<SimpleResponse> updateFcmToken(
+            @Valid @RequestBody UpdateFcmTokenRequest request,
+            @AuthenticationPrincipal UserPrincipal user
+    ){
         userService.updateFcmToken(user.getUuid(), request.getFcmToken());
         return ResponseEntity.ok(new SimpleResponse("Token updated"));
-    }
-
-    @GetMapping("/me/route")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<MobileRoute> getRoute(@AuthenticationPrincipal UserPrincipal user){
-
     }
 
 

@@ -14,14 +14,15 @@ public class PushNotificationService {
     final String CHANNEL_ID = "evacuation_alerts";
 
 
-    public void sendPushToUsers(List<String> targetFcmTokens, String buildingId) {
+    public void sendPushToUsers(List<String> targetFcmTokens, String buildingId, String title, String body, String type) {
         if (targetFcmTokens == null || targetFcmTokens.isEmpty()) {
             log.warn("Lista tokenów fcm jest pusta");
             return;
         }
 
         Notification notification = Notification.builder()
-                .setTitle("ROZPOCZĘTO EWAKUACJĘ")
+                .setTitle(title)
+                .setBody(body)
                 .build();
 
         AndroidConfig androidConfig = AndroidConfig.builder()
@@ -47,13 +48,13 @@ public class PushNotificationService {
                     .addAllTokens(group)
                     .setNotification(notification)
                     .setAndroidConfig(androidConfig)
-                    .putData("type", "EVACUATION")
+                    .putData("type", type)
                     .build();
 
             try {
                 BatchResponse response = FirebaseMessaging.getInstance().sendEachForMulticast(message);
             } catch (FirebaseMessagingException e) {
-                log.error("Failed to send push notification via Firebase", e);
+                log.error("Wysyłanie powiadomień przez Firebase zakończenie niepowodzeniem", e);
             }
 
         }

@@ -1,5 +1,6 @@
 package com.urbaniak.evacuation_support_system.models.room;
 
+import com.urbaniak.evacuation_support_system.components.evacuation_solver.input.dto.Room;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.Length;
@@ -31,5 +32,9 @@ public class RoomModel {
 
     @Column(name = "label")
     private String label;
+
+    public Room toSolverRoom() {
+        return new Room(roomId, x, y, floor);
+    }
 
 }
