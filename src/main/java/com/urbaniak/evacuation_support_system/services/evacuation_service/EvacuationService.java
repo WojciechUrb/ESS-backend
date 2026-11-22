@@ -9,6 +9,8 @@ import com.urbaniak.evacuation_support_system.components.evacuation_solver.outpu
 import com.urbaniak.evacuation_support_system.dto.Request.BlockedCellsRequest;
 import com.urbaniak.evacuation_support_system.dto.Response.RouteResponse;
 import com.urbaniak.evacuation_support_system.models.room.RoomModel;
+import com.urbaniak.evacuation_support_system.models.user.EvacuationStatus;
+import com.urbaniak.evacuation_support_system.models.user.UserModel;
 import com.urbaniak.evacuation_support_system.repositories.RoomRepository;
 import com.urbaniak.evacuation_support_system.repositories.UserRepository;
 import com.urbaniak.evacuation_support_system.services.MapLoader;
@@ -17,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
@@ -41,7 +44,6 @@ public class EvacuationService {
 
 
     public void startCalculating(){
-        // Jeden odczyt: decyzja i CAS dotyczą tej samej instancji stanu
         final State currentState = state.get();
         switch (currentState.evacuationState()) {
             case CALCULATING -> throw new ResponseStatusException(
@@ -55,7 +57,6 @@ public class EvacuationService {
             default -> { }
         }
 
-        // "Bilet" tego przebiegu - porównywany przez referencję (==)
         final State calculatingState = new State(EvacuationState.CALCULATING, null);
         if (!state.compareAndSet(currentState, calculatingState)) {
             throw new ResponseStatusException(
@@ -64,18 +65,12 @@ public class EvacuationService {
             );
         }
 
-        pushNotificationService.sendPushToUsers(userRepository.findAllTokens(Instant.now().minus(Duration.ofHours(24))),
-                "0001",
-                "EWAKUACJA",
-                "Wkrótce otrzymasz trasę ewakuacji",
-                "EVACUATION"
-        );
-
         final OutputData outputData;
         try {
-            Set<String> maps = mapLoader.loadMaps();
+            List<UserLocation> userLocationList = getLocationsAndActivateUsersEvacuationStatuses();
+            sendNotificationEvacuationStarted();
 
-            List<UserLocation> userLocationList = userRepository.findAllLocations(Instant.now().minus(Duration.ofHours(24)));
+            Set<String> maps = mapLoader.loadMaps();
 
             List<Room> rooms = roomRepository.findAll().stream()
                     .map(RoomModel::toSolverRoom)
@@ -87,50 +82,32 @@ public class EvacuationService {
 
             // Wracamy do IDLE tylko jeśli nikt w międzyczasie nie zmienił stanu
             if (state.compareAndSet(calculatingState, new State(EvacuationState.IDLE, null))) {
-                pushNotificationService.sendPushToUsers(userRepository.findAllTokens(Instant.now().minus(Duration.ofHours(24))),
-                        "0001",
-                        "EWAKUUJ SIĘ SAMODZIELNIE",
-                        "Udaj się do najbliższego wyjścia z budynku!",
-                        "NO-ROUTE"
-                );
+                sendNotificationIndependentEvacuation();
+                resetUsersEvacuationStatuses();
             }
             return;
         }
 
         // Publikujemy wynik tylko jeśli ten przebieg jest nadal aktualny
         if (state.compareAndSet(calculatingState, new State(EvacuationState.ACTIVE, outputData))) {
-            pushNotificationService.sendPushToUsers(userRepository.findAllTokens(Instant.now().minus(Duration.ofHours(24))),
-                    "0001",
-                    "TRASA GOTOWA",
-                    "Sprawdź trasę ewakuacji z budynku!",
-                    "ROUTE"
-            );
+            sendNotificationRoutesReady();
         } else {
             log.info("Przebieg obliczeń anulowany w trakcie - wynik odrzucony");
         }
     }
 
     public void stopEvacuation(){
-        final EvacuationState currentState = state.get().evacuationState();
-        switch (currentState) {
-            case IDLE -> {
-                throw new ResponseStatusException(
-                        HttpStatus.CONFLICT,
-                        "EWAKUACJA NIEAKTYWNA"
-                );
-            }
-            case CALCULATING -> {
-            }
-            case ACTIVE -> {
-                state.set(new State(EvacuationState.IDLE, null));
-                pushNotificationService.sendPushToUsers(userRepository.findAllTokens(Instant.now().minus(Duration.ofHours(24))),
-                        "0001",
-                        "EWAKUACJA ZAKOŃCZONA",
-                        "Upewnij się, czy w budynku jest bezpiecznie",
-                        "END"
-                );
-            }
+        final State prev = state.getAndSet(new State(EvacuationState.IDLE, null));
+        if(prev.evacuationState() == EvacuationState.IDLE){
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "EWAKUACJA NIEAKTYWNA"
+            );
         }
+
+        List<String> tokens = resetUsersEvacuationStatuses();
+        sendNotificationEvacuationCancelled(tokens);
+
     }
 
     public RouteResponse getRoute(UUID userId){
@@ -148,6 +125,87 @@ public class EvacuationService {
 
     public void updateBlockedCellsAndRecalculate(BlockedCellsRequest request){
 
+    }
+
+    @Transactional
+    public void markArrived(UUID uuid){
+        UserModel user = userRepository.findByUuid(uuid).orElseThrow(
+                () -> new IllegalStateException("Uwierzytelniony użytkownik nie istnieje w bazie: " + uuid)
+        );
+
+        if (user.getEvacuationStatus() != EvacuationStatus.ACTIVE) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Użytkownik nie uczestniczy w ewakuacji");
+        }
+
+        user.setEvacuationStatus(EvacuationStatus.ARRIVED);
+        userRepository.save(user);
+    }
+
+
+    public List<UserLocation> getLocationsAndActivateUsersEvacuationStatuses(){
+        List<UserModel> users = userRepository.findAllLocations(Instant.now().minus(Duration.ofHours(24)));
+        List<UserLocation> locations = new ArrayList<>();
+
+        for(UserModel user : users){
+            user.setEvacuationStatus(EvacuationStatus.ACTIVE);
+            locations.add(new UserLocation(user.getUuid(), user.getRoomId()));
+        }
+        userRepository.saveAll(users);
+        return locations;
+    }
+
+    public List<String> resetUsersEvacuationStatuses(){
+        List<UserModel> users = userRepository.findAll();
+        List<String> tokens = new ArrayList<>();
+
+        for (UserModel user : users) {
+            if (user.getEvacuationStatus() != EvacuationStatus.IDLE) {
+                user.setEvacuationStatus(EvacuationStatus.IDLE);
+
+                if (user.getFcmToken() != null) {
+                    tokens.add(user.getFcmToken());
+                }
+            }
+        }
+        userRepository.saveAll(users);
+        return tokens;
+    }
+
+
+    public void sendNotificationEvacuationStarted(){
+        pushNotificationService.sendPushToUsers(userRepository.findAllTokens(Instant.now().minus(Duration.ofHours(24))),
+                "0001",
+                "EWAKUACJA",
+                "Wkrótce otrzymasz trasę ewakuacji",
+                "EVACUATION"
+        );
+    }
+
+    public void sendNotificationRoutesReady(){
+        pushNotificationService.sendPushToUsers(userRepository.findTokensByEvacuationStatus(EvacuationStatus.ACTIVE),
+                "0001",
+                "TRASA GOTOWA",
+                "Sprawdź trasę ewakuacji z budynku!",
+                "ROUTE"
+        );
+    }
+
+    public void sendNotificationIndependentEvacuation(){
+        pushNotificationService.sendPushToUsers(userRepository.findTokensByEvacuationStatus(EvacuationStatus.ACTIVE),
+                "0001",
+                "EWAKUUJ SIĘ SAMODZIELNIE",
+                "Udaj się do najbliższego wyjścia z budynku!",
+                "NO-ROUTE"
+        );
+    }
+
+    public void sendNotificationEvacuationCancelled(List<String> tokens){
+        pushNotificationService.sendPushToUsers(tokens,
+                "0001",
+                "EWAKUACJA ZAKOŃCZONA",
+                "Upewnij się, czy w budynku jest bezpiecznie",
+                "END"
+        );
     }
 
 }

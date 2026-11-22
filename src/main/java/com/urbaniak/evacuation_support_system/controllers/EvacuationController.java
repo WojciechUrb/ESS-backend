@@ -17,12 +17,14 @@ import org.springframework.web.bind.annotation.*;
 public class EvacuationController {
     private final EvacuationService evacuationService;
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/start-evacuation")
     public ResponseEntity<SimpleResponse> startEvacuation(){
         evacuationService.startCalculating();
         return ResponseEntity.ok(new SimpleResponse("Rozpoczeto ewakuacje"));
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/cancel-evacuation")
     public ResponseEntity<SimpleResponse> cancelEvacuation(){
         evacuationService.stopEvacuation();

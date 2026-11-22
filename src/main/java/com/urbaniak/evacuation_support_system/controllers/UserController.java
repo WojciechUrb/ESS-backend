@@ -8,6 +8,7 @@ import com.urbaniak.evacuation_support_system.dto.Response.SimpleResponse;
 import com.urbaniak.evacuation_support_system.security.UserPrincipal;
 import com.urbaniak.evacuation_support_system.services.LocalizationService;
 import com.urbaniak.evacuation_support_system.services.UserService;
+import com.urbaniak.evacuation_support_system.services.evacuation_service.EvacuationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
     final private LocalizationService localizationService;
     final private UserService userService;
+    final private EvacuationService evacuationService;
 
     @GetMapping(value = "/me")
     public ResponseEntity<MeResponse> me(@AuthenticationPrincipal UserPrincipal principal){
@@ -34,6 +36,12 @@ public class UserController {
             @Valid @RequestBody UpdateLocalizationRequest request
     ){
         return ResponseEntity.status(HttpStatus.OK).body(localizationService.updateLocalization(principal.getUuid(), request));
+    }
+
+    @PatchMapping(value = "/me/arrived")
+    public ResponseEntity<SimpleResponse> markArrived(@AuthenticationPrincipal UserPrincipal principal){
+        evacuationService.markArrived(principal.getUuid());
+        return ResponseEntity.ok(new SimpleResponse("Zgłoszono dotarcie do punktu ewakuacji"));
     }
 
     @PostMapping(value = "/me/log-out")
