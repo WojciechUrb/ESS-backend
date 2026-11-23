@@ -36,6 +36,9 @@ public class RoomImportService {
             String line = lines.get(i);
             if(line.isBlank()) continue;
             String[] tab = line.split(";", -1);
+            if(tab.length < 5){
+                throw new IllegalStateException("Nieprawidłowy wiersz " + (i + 1) + " w pliku pokoi: " + line);
+            }
 
             String roomId = tab[0].trim().toLowerCase(Locale.ROOT);
 
@@ -49,7 +52,7 @@ public class RoomImportService {
             room.setFloor(Integer.parseInt(tab[1].trim()));
             room.setX(Integer.parseInt(tab[2].trim()));
             room.setY(Integer.parseInt(tab[3].trim()));
-            room.setLabel(tab[4].isBlank() ? null : tab[5].trim());
+            room.setLabel(tab[4].isBlank() ? null : tab[4].trim());
             toSave.add(room);
 
         }

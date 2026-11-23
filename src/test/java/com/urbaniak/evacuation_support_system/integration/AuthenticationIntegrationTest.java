@@ -2,7 +2,7 @@ package com.urbaniak.evacuation_support_system.integration;
 
 import com.urbaniak.evacuation_support_system.TestcontainersConfiguration;
 import com.urbaniak.evacuation_support_system.dto.Response.RegisteredResponse;
-import com.urbaniak.evacuation_support_system.models.user.EvacuationStatus;
+import com.urbaniak.evacuation_support_system.models.user.UserEvacuationStatus;
 import com.urbaniak.evacuation_support_system.models.user.Role;
 import com.urbaniak.evacuation_support_system.models.user.UserModel;
 import com.urbaniak.evacuation_support_system.repositories.UserRepository;
@@ -46,7 +46,7 @@ class AuthenticationIntegrationTest {
         assertThat(body.getUuid()).isNotNull();
 
         UserModel saved = userRepository.findByUuid(body.getUuid()).orElseThrow();
-        assertThat(saved.getEvacuationStatus()).isEqualTo(EvacuationStatus.IDLE);
+        assertThat(saved.getUserEvacuationStatus()).isEqualTo(UserEvacuationStatus.IDLE);
         assertThat(saved.getRoomId()).isNull();
         assertThat(saved.getLocalizationUpdatedAt()).isNotNull();
     }

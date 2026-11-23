@@ -1,6 +1,6 @@
 package com.urbaniak.evacuation_support_system.models.user;
 
-public enum EvacuationStatus {
+public enum UserEvacuationStatus {
 
      IDLE, /** nie uwzględniony w przypadku ewakuacji */
      ACTIVE, /** użytkownik uwzględniany w obliczeniach tras */

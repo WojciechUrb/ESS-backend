@@ -6,10 +6,11 @@ import com.urbaniak.evacuation_support_system.components.evacuation_solver.input
 import com.urbaniak.evacuation_support_system.components.evacuation_solver.input.dto.UserLocation;
 import com.urbaniak.evacuation_support_system.components.evacuation_solver.output.dto.MobileRoute;
 import com.urbaniak.evacuation_support_system.components.evacuation_solver.output.dto.OutputData;
+import com.urbaniak.evacuation_support_system.dto.BlockedCell;
 import com.urbaniak.evacuation_support_system.dto.Request.BlockedCellsRequest;
 import com.urbaniak.evacuation_support_system.dto.Response.RouteResponse;
 import com.urbaniak.evacuation_support_system.models.room.RoomModel;
-import com.urbaniak.evacuation_support_system.models.user.EvacuationStatus;
+import com.urbaniak.evacuation_support_system.models.user.UserEvacuationStatus;
 import com.urbaniak.evacuation_support_system.models.user.UserModel;
 import com.urbaniak.evacuation_support_system.repositories.RoomRepository;
 import com.urbaniak.evacuation_support_system.repositories.UserRepository;
@@ -31,7 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @Service
 @RequiredArgsConstructor
 public class EvacuationService {
-    private final AtomicReference<State> state = new AtomicReference<>(new State(EvacuationState.IDLE, null));
+    private final AtomicReference<State> state = new AtomicReference<>(new State(SystemEvacuationState.IDLE, null));
 
     private final UserRepository userRepository;
     private final RoomRepository roomRepository;
@@ -39,13 +40,13 @@ public class EvacuationService {
     private final EvacuationSolver evacuationSolver;
     private final MapLoader mapLoader;
 
-    private  List<Cell> blockedCells = new ArrayList<>();
+    private  Set<Cell> blockedCells = new HashSet<>();
 
 
 
     public void startCalculating(){
         final State currentState = state.get();
-        switch (currentState.evacuationState()) {
+        switch (currentState.systemEvacuationState()) {
             case CALCULATING -> throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Obliczenia uruchomione"
@@ -54,21 +55,23 @@ public class EvacuationService {
                     HttpStatus.CONFLICT,
                     "Ewakuacja w toku"
             );
-            default -> { }
+            default -> {  }
         }
 
-        final State calculatingState = new State(EvacuationState.CALCULATING, null);
+        final State calculatingState = new State(SystemEvacuationState.CALCULATING, null);
+
         if (!state.compareAndSet(currentState, calculatingState)) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Stan uległ zmianie"
             );
         }
+        blockedCells.clear();
 
         final OutputData outputData;
         try {
             List<UserLocation> userLocationList = getLocationsAndActivateUsersEvacuationStatuses();
-            sendNotificationEvacuationStarted();
+            pushNotificationService.sendNotificationEvacuationStarted();
 
             Set<String> maps = mapLoader.loadMaps();
 
@@ -76,29 +79,28 @@ public class EvacuationService {
                     .map(RoomModel::toSolverRoom)
                     .toList();
 
-            outputData = evacuationSolver.solve(maps, rooms, userLocationList, blockedCells);
+            outputData = evacuationSolver.solve(maps, rooms, userLocationList, new HashSet<>(blockedCells));
         } catch (Exception e) {
             log.error("Wyznaczanie tras zakończone niepowodzeniem", e);
 
             // Wracamy do IDLE tylko jeśli nikt w międzyczasie nie zmienił stanu
-            if (state.compareAndSet(calculatingState, new State(EvacuationState.IDLE, null))) {
-                sendNotificationIndependentEvacuation();
+            if (state.compareAndSet(calculatingState, new State(SystemEvacuationState.IDLE, null))) {
+                pushNotificationService.sendNotificationIndependentEvacuation(userRepository.findTokensByEvacuationStatus(UserEvacuationStatus.ACTIVE));
                 resetUsersEvacuationStatuses();
             }
             return;
         }
 
-        // Publikujemy wynik tylko jeśli ten przebieg jest nadal aktualny
-        if (state.compareAndSet(calculatingState, new State(EvacuationState.ACTIVE, outputData))) {
-            sendNotificationRoutesReady();
+        if (state.compareAndSet(calculatingState, new State(SystemEvacuationState.ACTIVE, outputData))) {
+            pushNotificationService.sendNotificationRoutesReady();
         } else {
             log.info("Przebieg obliczeń anulowany w trakcie - wynik odrzucony");
         }
     }
 
     public void stopEvacuation(){
-        final State prev = state.getAndSet(new State(EvacuationState.IDLE, null));
-        if(prev.evacuationState() == EvacuationState.IDLE){
+        final State prev = state.getAndSet(new State(SystemEvacuationState.IDLE, null));
+        if(prev.systemEvacuationState() == SystemEvacuationState.IDLE){
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "EWAKUACJA NIEAKTYWNA"
@@ -106,26 +108,101 @@ public class EvacuationService {
         }
 
         List<String> tokens = resetUsersEvacuationStatuses();
-        sendNotificationEvacuationCancelled(tokens);
+        pushNotificationService.sendNotificationEvacuationCancelled(tokens);
 
+    }
+
+    public synchronized void updateBlockedCellsAndRecalculate(BlockedCellsRequest request){
+        final State currentState = state.get();
+        if(!currentState.systemEvacuationState().equals(SystemEvacuationState.ACTIVE)){
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "EWAKUACJA NIEAKTYWNA"
+            );
+        }
+        if(request.blockedCells() == null || request.blockedCells().isEmpty()){
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "PUSTY REQUEST"
+            );
+        }
+        for(BlockedCell blockedCell : request.blockedCells()) blockedCells.add(new Cell(blockedCell.x(), blockedCell.y(), blockedCell.floor()));
+
+        List<UserLocation> locations = new ArrayList<>();
+        Set<UUID> activeIds = new HashSet<>(); // ZMIANA (pkt 4): id aktywnych, żeby nie wysłać NO-ROUTE osobom ARRIVED
+        for(UserModel user : userRepository.findAllByEvacuationStatus(UserEvacuationStatus.ACTIVE)){
+            locations.add(new UserLocation(user.getUuid(), user.getRoomId()));
+            activeIds.add(user.getUuid()); // ZMIANA (pkt 4)
+        }
+        if(locations.isEmpty()) return;
+
+        // rekaltulacja
+        OutputData outputData;
+        try {
+            Set<String> maps = mapLoader.loadMaps();
+            List<Room> rooms = roomRepository.findAll().stream()
+                    .map(RoomModel::toSolverRoom)
+                    .toList();
+
+            outputData = evacuationSolver.solve(maps, rooms, locations, new HashSet<>(blockedCells));
+        } catch (Exception e) {
+            log.error("Wyznaczanie tras zakończone niepowodzeniem", e);
+            if (state.compareAndSet(currentState, new State(SystemEvacuationState.ACTIVE, null))) {
+                pushNotificationService.sendNotificationIndependentEvacuation(userRepository.findTokensByEvacuationStatus(UserEvacuationStatus.ACTIVE));
+            }
+            return;
+        }
+
+        if (!state.compareAndSet(currentState, new State(SystemEvacuationState.ACTIVE, outputData))) {
+            log.info("Ewakuacja zakończona w trakcie przeliczania - wynik odrzucony");
+            return;
+        }
+
+        Map<UUID, MobileRoute> oldRoutes = new HashMap<>();
+        Map<UUID, MobileRoute> newRoutes = outputData.routes();
+        Set<UUID> changedRoute = new HashSet<>();
+        Set<UUID> lostRoute = new HashSet<>();
+
+        if(currentState.outputData() != null) oldRoutes = currentState.outputData().routes();
+
+        for(UUID uuid : newRoutes.keySet()){
+            if(!newRoutes.get(uuid).equals(oldRoutes.get(uuid))) changedRoute.add(uuid);
+        }
+
+        for(UUID uuid : oldRoutes.keySet()){
+            if(!newRoutes.containsKey(uuid) && activeIds.contains(uuid)) lostRoute.add(uuid);
+        }
+
+        if(!changedRoute.isEmpty()) pushNotificationService.sendNotificationNewRoutes(userRepository.findTokensByUuids(changedRoute));
+        if(!lostRoute.isEmpty()) pushNotificationService.sendNotificationIndependentEvacuation(userRepository.findTokensByUuids(lostRoute));
     }
 
     public RouteResponse getRoute(UUID userId){
-        // Jeden odczyt: stan i wynik pochodzą z tej samej migawki
         final State currentState = state.get();
-        return switch (currentState.evacuationState()) {
+        final RouteResponse response;
+
+        switch (currentState.systemEvacuationState()) {
             case ACTIVE -> {
-                MobileRoute route = currentState.outputData().routes().get(userId);
-                yield route != null ? RouteResponse.ready(route) : RouteResponse.noRoute();
+                if(currentState.outputData() == null){
+                    response = RouteResponse.noRoute();
+                }else{
+                    MobileRoute route = currentState.outputData().routes().get(userId);
+                    if(route != null){
+                        response = RouteResponse.ready(route);
+                    }else{
+                        response = RouteResponse.noRoute();
+                    }
+                }
             }
-            case CALCULATING -> RouteResponse.calculating();
-            case IDLE -> RouteResponse.noEvacuation();
-        };
+            case CALCULATING -> response = RouteResponse.calculating();
+            case IDLE -> response = RouteResponse.noEvacuation();
+            default -> throw new IllegalStateException("Unexpected state: " + currentState.systemEvacuationState());
+        }
+
+        return response;
     }
 
-    public void updateBlockedCellsAndRecalculate(BlockedCellsRequest request){
 
-    }
 
     @Transactional
     public void markArrived(UUID uuid){
@@ -133,11 +210,11 @@ public class EvacuationService {
                 () -> new IllegalStateException("Uwierzytelniony użytkownik nie istnieje w bazie: " + uuid)
         );
 
-        if (user.getEvacuationStatus() != EvacuationStatus.ACTIVE) {
+        if (user.getUserEvacuationStatus() != UserEvacuationStatus.ACTIVE) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Użytkownik nie uczestniczy w ewakuacji");
         }
 
-        user.setEvacuationStatus(EvacuationStatus.ARRIVED);
+        user.setUserEvacuationStatus(UserEvacuationStatus.ARRIVED);
         userRepository.save(user);
     }
 
@@ -147,7 +224,7 @@ public class EvacuationService {
         List<UserLocation> locations = new ArrayList<>();
 
         for(UserModel user : users){
-            user.setEvacuationStatus(EvacuationStatus.ACTIVE);
+            user.setUserEvacuationStatus(UserEvacuationStatus.ACTIVE);
             locations.add(new UserLocation(user.getUuid(), user.getRoomId()));
         }
         userRepository.saveAll(users);
@@ -159,8 +236,8 @@ public class EvacuationService {
         List<String> tokens = new ArrayList<>();
 
         for (UserModel user : users) {
-            if (user.getEvacuationStatus() != EvacuationStatus.IDLE) {
-                user.setEvacuationStatus(EvacuationStatus.IDLE);
+            if (user.getUserEvacuationStatus() != UserEvacuationStatus.IDLE) {
+                user.setUserEvacuationStatus(UserEvacuationStatus.IDLE);
 
                 if (user.getFcmToken() != null) {
                     tokens.add(user.getFcmToken());
@@ -169,43 +246,6 @@ public class EvacuationService {
         }
         userRepository.saveAll(users);
         return tokens;
-    }
-
-
-    public void sendNotificationEvacuationStarted(){
-        pushNotificationService.sendPushToUsers(userRepository.findAllTokens(Instant.now().minus(Duration.ofHours(24))),
-                "0001",
-                "EWAKUACJA",
-                "Wkrótce otrzymasz trasę ewakuacji",
-                "EVACUATION"
-        );
-    }
-
-    public void sendNotificationRoutesReady(){
-        pushNotificationService.sendPushToUsers(userRepository.findTokensByEvacuationStatus(EvacuationStatus.ACTIVE),
-                "0001",
-                "TRASA GOTOWA",
-                "Sprawdź trasę ewakuacji z budynku!",
-                "ROUTE"
-        );
-    }
-
-    public void sendNotificationIndependentEvacuation(){
-        pushNotificationService.sendPushToUsers(userRepository.findTokensByEvacuationStatus(EvacuationStatus.ACTIVE),
-                "0001",
-                "EWAKUUJ SIĘ SAMODZIELNIE",
-                "Udaj się do najbliższego wyjścia z budynku!",
-                "NO-ROUTE"
-        );
-    }
-
-    public void sendNotificationEvacuationCancelled(List<String> tokens){
-        pushNotificationService.sendPushToUsers(tokens,
-                "0001",
-                "EWAKUACJA ZAKOŃCZONA",
-                "Upewnij się, czy w budynku jest bezpiecznie",
-                "END"
-        );
     }
 
 }

@@ -13,7 +13,7 @@ public class MapParser {
     @Value("${evacuation.building-id}")
     private String buildingId;
 
-    public ParseMapResult parseMap(Set<String> maps, List<Cell> blockedCells){
+    public ParseMapResult parseMap(Set<String> maps, Set<Cell> blockedCells){
 
         int floor;
 
@@ -43,17 +43,22 @@ public class MapParser {
                 for (int x = 0; x < lines[y].length(); x++) {
                     char c = lines[y].charAt(x);
                     if (c == 'o') continue;
+
+                    Cell cell = new Cell(x, y-2, floor);
                     if (c == 'x'){
-                        Cell cell = new Cell(x, y-2, floor);
                         if(!blockedCells.contains(cell)) corridorCells.add(cell);
                     }
                     if (c == 'e') {
-                        corridorCells.add(new Cell(x, y - 2, floor));
-                        exits.add(new Exit("exit_f"+floor+"_x"+x+"_y"+(y-2), x, y-2, floor));
+                        if(!blockedCells.contains(cell)) {
+                            corridorCells.add(cell);
+                            exits.add(new Exit("exit_f" + floor + "_x" + x + "_y" + (y - 2), x, y - 2, floor));
+                        }
                     }
                     if ( (c >= 'A' && c <= 'Z') ){
-                        corridorCells.add(new Cell(x, y-2, floor));
-                        stairCells.computeIfAbsent(c, k -> new HashSet<>()).add(new Cell(x, y-2, floor));
+                        if(!blockedCells.contains(cell)) {
+                            corridorCells.add(cell);
+                            stairCells.computeIfAbsent(c, k -> new HashSet<>()).add(new Cell(x, y - 2, floor));
+                        }
                     }
                 }
             }

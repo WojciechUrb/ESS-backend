@@ -1,6 +1,6 @@
 package com.urbaniak.evacuation_support_system.security;
 
-import com.urbaniak.evacuation_support_system.models.user.EvacuationStatus;
+import com.urbaniak.evacuation_support_system.models.user.UserEvacuationStatus;
 import com.urbaniak.evacuation_support_system.models.user.Role;
 import com.urbaniak.evacuation_support_system.models.user.UserModel;
 import org.springframework.security.core.GrantedAuthority;
@@ -39,7 +39,7 @@ public class UserPrincipal implements UserDetails {
 
     public Role getRole(){return user.getRole();}
 
-    public EvacuationStatus getEvacuationStatus(){return user.getEvacuationStatus();}
+    public UserEvacuationStatus getEvacuationStatus(){return user.getUserEvacuationStatus();}
 
     public String getRoomId(){ return user.getRoomId();}
 

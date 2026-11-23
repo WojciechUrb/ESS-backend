@@ -27,7 +27,11 @@ public class SecurityConfiguration{
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/api/auth/**"
+                                "/api/auth/**",
+                                // ZMIANA: Swagger UI i dokumentacja OpenAPI dostępne bez tokenu
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**"
                         )
                         .permitAll() // endpointy publiczne
                         .anyRequest()

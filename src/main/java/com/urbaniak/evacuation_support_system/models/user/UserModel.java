@@ -6,10 +6,8 @@ import lombok.Builder;
 import lombok.NoArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -40,7 +38,7 @@ public class UserModel {
 
     @Column(name = "evacuation_status", nullable = false, length = 16)
     @Enumerated(EnumType.STRING)
-    private EvacuationStatus evacuationStatus;
+    private UserEvacuationStatus userEvacuationStatus;
 
     @Column(name = "push_token", length = 512)
     private String fcmToken;

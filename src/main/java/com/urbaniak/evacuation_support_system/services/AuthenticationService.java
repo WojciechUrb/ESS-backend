@@ -1,7 +1,7 @@
 package com.urbaniak.evacuation_support_system.services;
 
 import com.urbaniak.evacuation_support_system.dto.Response.RegisteredResponse;
-import com.urbaniak.evacuation_support_system.models.user.EvacuationStatus;
+import com.urbaniak.evacuation_support_system.models.user.UserEvacuationStatus;
 import com.urbaniak.evacuation_support_system.models.user.Role;
 import com.urbaniak.evacuation_support_system.models.user.UserModel;
 import com.urbaniak.evacuation_support_system.repositories.UserRepository;
@@ -24,7 +24,7 @@ public class AuthenticationService {
         UserModel user = UserModel.builder()
                 .uuid(UUID.randomUUID())
                 .role(Role.USER)
-                .evacuationStatus(EvacuationStatus.IDLE)
+                .userEvacuationStatus(UserEvacuationStatus.IDLE)
                 .roomId(null)
                 .localizationUpdatedAt(null)
                 .build();

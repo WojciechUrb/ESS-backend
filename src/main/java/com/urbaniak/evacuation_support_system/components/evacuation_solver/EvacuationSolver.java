@@ -21,7 +21,7 @@ public class EvacuationSolver {
     private final EvacuationPlanner evacuationPlanner;
 
 
-    public OutputData solve(Set<String> maps, List<Room> rooms, List<UserLocation> usersLocation, List<Cell> blockedCells){
+    public OutputData solve(Set<String> maps, List<Room> rooms, List<UserLocation> usersLocation, Set<Cell> blockedCells){
 
         BuildingLayout buildingLayout = new BuildingLayout(rooms, mapParser.parseMap(maps, blockedCells));
         RoomAssignment roomAssignment = roomAssigner.assign(buildingLayout, usersLocation);

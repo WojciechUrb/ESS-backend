@@ -1,7 +1,7 @@
 package com.urbaniak.evacuation_support_system.unit;
 
 import com.urbaniak.evacuation_support_system.dto.Response.RegisteredResponse;
-import com.urbaniak.evacuation_support_system.models.user.EvacuationStatus;
+import com.urbaniak.evacuation_support_system.models.user.UserEvacuationStatus;
 import com.urbaniak.evacuation_support_system.models.user.Role;
 import com.urbaniak.evacuation_support_system.models.user.UserModel;
 import com.urbaniak.evacuation_support_system.repositories.UserRepository;
@@ -37,7 +37,7 @@ class AuthenticationServiceTest {
         UserModel saved = captor.getValue();
 
         assertThat(saved.getRole()).isEqualTo(Role.USER);
-        assertThat(saved.getEvacuationStatus()).isEqualTo(EvacuationStatus.IDLE);
+        assertThat(saved.getUserEvacuationStatus()).isEqualTo(UserEvacuationStatus.IDLE);
         assertThat(saved.getRoomId()).isNull();
         assertThat(saved.getLocalizationUpdatedAt()).isNotNull();
         assertThat(saved.getUuid()).isNotNull();

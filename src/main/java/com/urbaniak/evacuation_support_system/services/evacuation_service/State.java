@@ -2,5 +2,5 @@ package com.urbaniak.evacuation_support_system.services.evacuation_service;
 
 import com.urbaniak.evacuation_support_system.components.evacuation_solver.output.dto.OutputData;
 
-public record State(EvacuationState evacuationState, OutputData outputData) {
+public record State(SystemEvacuationState systemEvacuationState, OutputData outputData) {
 }
