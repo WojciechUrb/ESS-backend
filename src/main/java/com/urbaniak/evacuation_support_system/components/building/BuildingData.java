@@ -111,4 +111,10 @@ public class BuildingData {
             ));
         }
     }
+
+    public List<QrPoint> getQrPoints(){
+        return new ArrayList<>(qrPoints.values());
+    }
+
+
 }
