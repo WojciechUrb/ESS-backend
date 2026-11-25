@@ -4,11 +4,8 @@ import com.urbaniak.evacuation_support_system.TestcontainersConfiguration;
 import com.urbaniak.evacuation_support_system.dto.Request.LogoutRequest;
 import com.urbaniak.evacuation_support_system.dto.Request.UpdateLocalizationRequest;
 import com.urbaniak.evacuation_support_system.dto.Response.RegisteredResponse;
-import com.urbaniak.evacuation_support_system.models.room.RoomModel;
 import com.urbaniak.evacuation_support_system.models.user.UserModel;
-import com.urbaniak.evacuation_support_system.repositories.RoomRepository;
 import com.urbaniak.evacuation_support_system.repositories.UserRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
@@ -30,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "evacuation.rooms-file=classpath:test_rooms.csv"
+        properties = "evacuation.qr-points-file=classpath:test_rooms.csv"
 )
 @AutoConfigureTestRestTemplate
 class LocalizationIntegrationTest {
@@ -44,9 +41,6 @@ class LocalizationIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
-    @Autowired
-    private RoomRepository roomRepository;
-
     // metody pomocnicze
 
     private RegisteredResponse register() {
@@ -55,19 +49,6 @@ class LocalizationIntegrationTest {
         return response.getBody();
     }
 
-
-    @BeforeEach
-    void seedRoom(){
-        roomRepository.deleteAll();
-        roomRepository.save(RoomModel.builder()
-                .roomId("101")
-                .floor(1)
-                .x(2)
-                .y(3)
-                .build()
-
-        );
-    }
 
     private HttpHeaders bearer(String token){
         HttpHeaders headers = new HttpHeaders();

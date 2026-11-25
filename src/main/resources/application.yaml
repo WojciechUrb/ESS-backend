@@ -21,7 +21,7 @@ spring:
 
 evacuation:
   building-id: "0001"
-  rooms-file: "classpath:maps/0001_rooms.csv"
+  qr-points-file: "classpath:maps/0001_qr-points.csv"
   solver:
     max-horizon: 500
     maps-location: "classpath:maps/"

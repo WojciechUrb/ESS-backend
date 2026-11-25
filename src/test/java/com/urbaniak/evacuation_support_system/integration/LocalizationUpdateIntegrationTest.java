@@ -3,11 +3,8 @@ package com.urbaniak.evacuation_support_system.integration;
 import com.urbaniak.evacuation_support_system.TestcontainersConfiguration;
 import com.urbaniak.evacuation_support_system.dto.Request.UpdateLocalizationRequest;
 import com.urbaniak.evacuation_support_system.dto.Response.RegisteredResponse;
-import com.urbaniak.evacuation_support_system.models.room.RoomModel;
 import com.urbaniak.evacuation_support_system.models.user.UserModel;
-import com.urbaniak.evacuation_support_system.repositories.RoomRepository;
 import com.urbaniak.evacuation_support_system.repositories.UserRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
@@ -25,7 +22,7 @@ import java.time.temporal.ChronoUnit;
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "evacuation.rooms-file=classpath:test_rooms.csv")
+        properties = "evacuation.qr-points-file=classpath:test_rooms.csv")
 @AutoConfigureTestRestTemplate
 public class LocalizationUpdateIntegrationTest {
 
@@ -36,22 +33,6 @@ public class LocalizationUpdateIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
-
-    @Autowired
-    private RoomRepository roomRepository;
-
-    @BeforeEach
-    void seedRoom(){
-        roomRepository.deleteAll();
-        roomRepository.save(RoomModel.builder()
-                .roomId("101")
-                .floor(1)
-                .x(2)
-                .y(3)
-                .build()
-
-        );
-    }
 
     private ResponseEntity<String> updateLocation(String token, String qr, Instant time){
         HttpHeaders headers = new HttpHeaders();

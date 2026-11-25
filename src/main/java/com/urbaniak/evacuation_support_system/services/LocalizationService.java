@@ -4,7 +4,7 @@ import com.urbaniak.evacuation_support_system.dto.Request.LogoutRequest;
 import com.urbaniak.evacuation_support_system.dto.Request.UpdateLocalizationRequest;
 import com.urbaniak.evacuation_support_system.dto.Response.SimpleResponse;
 import com.urbaniak.evacuation_support_system.models.user.UserModel;
-import com.urbaniak.evacuation_support_system.repositories.RoomRepository;
+import com.urbaniak.evacuation_support_system.components.building.BuildingData;
 import com.urbaniak.evacuation_support_system.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,7 +22,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class LocalizationService {
     private final UserRepository userRepository;
-    private final RoomRepository roomRepository;
+    private final BuildingData buildingData;
     private final Clock clock;
 
     @Transactional
@@ -37,8 +37,8 @@ public class LocalizationService {
 
         String roomId = loc.get("roomId");
 
-        if(roomRepository.findByRoomId(roomId).isEmpty()){
-            throw new IllegalArgumentException("Pomieszczenie nie istnieje: " + roomId);
+        if(!buildingData.qrPointExists(roomId)){
+            throw new IllegalArgumentException("Punkt QR nie istnieje: " + roomId);
         }
 
         user.setRoomId(roomId);

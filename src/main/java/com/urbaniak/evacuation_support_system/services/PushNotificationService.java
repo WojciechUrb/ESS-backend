@@ -97,7 +97,7 @@ public class PushNotificationService {
     public void sendNotificationNewRoutes(List<String> tokens){
         sendPushToUsers(tokens,
                 "0001",
-                "TRASA ZMIENIONA", // ZMIANA: push idzie tylko do osób ze zmienioną trasą
+                "TRASA ZMIENIONA",
                 "Twoja trasa ewakuacji została zmieniona - sprawdź nową!",
                 "ROUTE"
         );

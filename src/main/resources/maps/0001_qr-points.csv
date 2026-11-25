@@ -1,0 +1,5 @@
+qr_id;type;floor;x;y;label
+011;ROOM;0;2;3;recepcja
+113;ROOM;1;10;1;pokój prezesa
+k0_05_02;CORRIDOR;0;5;2;
+s0_a;STAIRS;0;13;0;klatka A

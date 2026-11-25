@@ -28,7 +28,6 @@ public class SecurityConfiguration{
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/auth/**",
-                                // ZMIANA: Swagger UI i dokumentacja OpenAPI dostępne bez tokenu
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
@@ -49,39 +48,3 @@ public class SecurityConfiguration{
 
 }
 
-
-
-//@Configuration
-//@EnableWebSecurity
-//@EnableMethodSecurity
-//@RequiredArgsConstructor
-//public class SecurityConfiguration {
-//    private final JWTAuthenticationFilter jwtAuthenticationFilter;
-//    private final AuthenticationProvider authenticationProvider;
-//
-//    @Bean
-//    public SecurityFilterChain securityFilterChain(HttpSecurity http) {
-//        http
-//                .csrf(AbstractHttpConfigurer::disable)
-//                .authorizeHttpRequests(
-//                        auth -> auth.requestMatchers(
-//                                "/v3/api-docs/**",
-//                                "/swagger-ui/**"
-//                        )
-//                                .permitAll()
-//                                .anyRequest()
-//                                .authenticated()
-//                )
-//                .cors(Customizer.withDefaults())
-//                .sessionManagement(
-//                        session -> session
-//                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-//                )
-//                .authenticationProvider(authenticationProvider)
-//                .addFilterBefore(jwtAuthenticationFilter);
-//
-//        return http.build();
-//    }
-//
-//
-//}

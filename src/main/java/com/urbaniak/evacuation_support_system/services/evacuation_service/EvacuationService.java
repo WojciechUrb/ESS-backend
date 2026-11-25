@@ -1,5 +1,6 @@
 package com.urbaniak.evacuation_support_system.services.evacuation_service;
 
+import com.urbaniak.evacuation_support_system.components.building.BuildingData;
 import com.urbaniak.evacuation_support_system.components.evacuation_solver.EvacuationSolver;
 import com.urbaniak.evacuation_support_system.components.evacuation_solver.input.dto.Cell;
 import com.urbaniak.evacuation_support_system.components.evacuation_solver.input.dto.Room;
@@ -9,12 +10,9 @@ import com.urbaniak.evacuation_support_system.components.evacuation_solver.outpu
 import com.urbaniak.evacuation_support_system.dto.BlockedCell;
 import com.urbaniak.evacuation_support_system.dto.Request.BlockedCellsRequest;
 import com.urbaniak.evacuation_support_system.dto.Response.RouteResponse;
-import com.urbaniak.evacuation_support_system.models.room.RoomModel;
 import com.urbaniak.evacuation_support_system.models.user.UserEvacuationStatus;
 import com.urbaniak.evacuation_support_system.models.user.UserModel;
-import com.urbaniak.evacuation_support_system.repositories.RoomRepository;
 import com.urbaniak.evacuation_support_system.repositories.UserRepository;
-import com.urbaniak.evacuation_support_system.services.MapLoader;
 import com.urbaniak.evacuation_support_system.services.PushNotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,10 +33,9 @@ public class EvacuationService {
     private final AtomicReference<State> state = new AtomicReference<>(new State(SystemEvacuationState.IDLE, null));
 
     private final UserRepository userRepository;
-    private final RoomRepository roomRepository;
+    private final BuildingData buildingData;
     private final PushNotificationService pushNotificationService;
     private final EvacuationSolver evacuationSolver;
-    private final MapLoader mapLoader;
 
     private  Set<Cell> blockedCells = new HashSet<>();
 
@@ -73,11 +70,8 @@ public class EvacuationService {
             List<UserLocation> userLocationList = getLocationsAndActivateUsersEvacuationStatuses();
             pushNotificationService.sendNotificationEvacuationStarted();
 
-            Set<String> maps = mapLoader.loadMaps();
-
-            List<Room> rooms = roomRepository.findAll().stream()
-                    .map(RoomModel::toSolverRoom)
-                    .toList();
+            Set<String> maps = buildingData.getMaps();
+            List<Room> rooms = buildingData.getSolverRooms();
 
             outputData = evacuationSolver.solve(maps, rooms, userLocationList, new HashSet<>(blockedCells));
         } catch (Exception e) {
@@ -129,20 +123,18 @@ public class EvacuationService {
         for(BlockedCell blockedCell : request.blockedCells()) blockedCells.add(new Cell(blockedCell.x(), blockedCell.y(), blockedCell.floor()));
 
         List<UserLocation> locations = new ArrayList<>();
-        Set<UUID> activeIds = new HashSet<>(); // ZMIANA (pkt 4): id aktywnych, żeby nie wysłać NO-ROUTE osobom ARRIVED
+        Set<UUID> activeIds = new HashSet<>();
         for(UserModel user : userRepository.findAllByEvacuationStatus(UserEvacuationStatus.ACTIVE)){
             locations.add(new UserLocation(user.getUuid(), user.getRoomId()));
-            activeIds.add(user.getUuid()); // ZMIANA (pkt 4)
+            activeIds.add(user.getUuid());
         }
         if(locations.isEmpty()) return;
 
         // rekaltulacja
         OutputData outputData;
         try {
-            Set<String> maps = mapLoader.loadMaps();
-            List<Room> rooms = roomRepository.findAll().stream()
-                    .map(RoomModel::toSolverRoom)
-                    .toList();
+            Set<String> maps = buildingData.getMaps();
+            List<Room> rooms = buildingData.getSolverRooms();
 
             outputData = evacuationSolver.solve(maps, rooms, locations, new HashSet<>(blockedCells));
         } catch (Exception e) {
