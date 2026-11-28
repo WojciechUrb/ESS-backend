@@ -73,4 +73,50 @@ class AuthenticationIntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
+
+    @Test
+    void shouldRefreshTokenForSameUser() {
+        ResponseEntity<RegisteredResponse> registerResponse =
+                restTemplate.postForEntity("/api/auth/register", null, RegisteredResponse.class);
+        RegisteredResponse registered = registerResponse.getBody();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(registered.getToken());
+
+        ResponseEntity<RegisteredResponse> refreshResponse = restTemplate.exchange(
+                "/api/auth/refresh", HttpMethod.POST, new HttpEntity<>(headers), RegisteredResponse.class);
+
+        assertThat(refreshResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        RegisteredResponse refreshed = refreshResponse.getBody();
+        assertThat(refreshed).isNotNull();
+        assertThat(refreshed.getUuid()).isEqualTo(registered.getUuid());
+        assertThat(refreshed.getRole()).isEqualTo(Role.USER);
+        assertThat(refreshed.getToken()).isNotBlank();
+
+        HttpHeaders newHeaders = new HttpHeaders();
+        newHeaders.setBearerAuth(refreshed.getToken());
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/actuator/health", HttpMethod.GET, new HttpEntity<>(newHeaders), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void shouldReturn401OnRefreshWithoutToken() {
+        ResponseEntity<String> response =
+                restTemplate.postForEntity("/api/auth/refresh", null, String.class);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+    }
+
+    @Test
+    void shouldReturn401OnRefreshWithInvalidToken() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth("abc");
+
+        ResponseEntity<String> response = restTemplate.exchange(
+                "/api/auth/refresh", HttpMethod.POST, new HttpEntity<>(headers), String.class);
+
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+    }
 }

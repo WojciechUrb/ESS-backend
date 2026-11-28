@@ -39,7 +39,7 @@ class AuthenticationServiceTest {
         assertThat(saved.getRole()).isEqualTo(Role.USER);
         assertThat(saved.getUserEvacuationStatus()).isEqualTo(UserEvacuationStatus.IDLE);
         assertThat(saved.getRoomId()).isNull();
-        assertThat(saved.getLocalizationUpdatedAt()).isNotNull();
+        assertThat(saved.getLocalizationUpdatedAt()).isNull();
         assertThat(saved.getUuid()).isNotNull();
 
         assertThat(response.getRole()).isEqualTo(Role.USER);

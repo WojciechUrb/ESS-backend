@@ -33,5 +33,9 @@ public class AuthenticationService {
         return new RegisteredResponse(user.getUuid(), user.getRole(), jwtService.generateToken(new UserPrincipal(user)));
     }
 
+    public RegisteredResponse refresh(UserPrincipal principal){
+        String token = jwtService.generateToken(principal);
+        return new RegisteredResponse(principal.getUuid(), principal.getRole(), token);
+    }
 
 }
